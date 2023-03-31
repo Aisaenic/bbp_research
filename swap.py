@@ -1,4 +1,4 @@
-import argparse, enum, re, random
+import argparse, enum, re, random, os
 """
 Author: Emily Gao
 About: Written for the purpose of classifying variable values and replacing them
@@ -51,6 +51,8 @@ class Data_Types(enum):
         digits = ""
         if num_digits == None:
             num_digits = random.randint(4, 7) # trailing digits of CVE can have more than 7 digits but we will set limit
+        if num_digits < 1:
+            return ValueError("Must generate at least one random digit.")
         for i in range(num_digits):
             digits += str(random.randint(0, 9)) # unlike usual, this is inclusive of 9
         return digits
@@ -60,10 +62,14 @@ class Data_Types(enum):
         split_by_dash = value.split("-")
         return f"{split_by_dash[0]}-{self.random_digits_generator(len(split_by_dash[1]))}-{self.random_digits_generator(len(split_by_dash[2]))}"
 
-    def replace_del_int(value):
+    def replace_del_int(self, value):
+        new_val = ""
         for i in range(len(value)):
-            
-        pass
+            if value[i].isdigit():
+                new_val += self.random_digits_generator(1)
+            else:
+                new_val += value[i]
+        return new_val
 
     def replace_id(value):
         pass
@@ -81,20 +87,42 @@ class Data_Types(enum):
     MISMATCH = None
 
 def swap(to_swap):
+    types = Data_Types()
+    swapped = []
     for value in to_swap:
-        
+        swapped.append(types.identify(value)(value))
+    return swapped
+
+def file_precheck(name):
+    invalid = True
+    while invalid:
+        if os.path.exists(f"{os.getcwd()}/{name}"):
+            delete = input("Output file already exists, delete file first? [Y/n]")
+            if delete.lower() == "y":
+                os.remove(f"{os.getcwd()}/{name}")
+                invalid = False
+            else:
+                name = input(f"{"Input invalid. "if delete.lower() != "n" else ""}Please specify alternative filename.")
+        else:
+            return None
 
 def main(args):
     to_swap = []
-    if args.input:
-        with open(args.input, "r") as infile:
-            to_swap = []
-    if 
-
+    if args.infile:
+        with open(args.infile, "r") as infile:
+            to_swap = infile.readlines()
+    if args.swap:
+        to_swap = args.swap
+    if len(to_swap) > 0:
+        swapped = swap(to_swap)
+        file_precheck(args.outfile)
+        with open(args.outfile, "a") as outfile:
+            outfile.writelines(swapped)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", default=None, help="Name of input file.")
-    parser.add_argument("-o", "--output", default="swapped_values", help="Name of output file.")
+    parser.add_argument("-i", "--infile", default=None, help="Name of input file.")
+    parser.add_argument("-s", "--swap", default=None, help="Single value to swap.")
+    parser.add_argument("-o", "--outfile", default="swapped_values", help="Name of output file.")
     args = parser.parse_args()
     main(args)
