@@ -72,8 +72,14 @@ def connect_tags(all_data, tagged_data):
         for num in tagged_data:
             temp_id = int(num["id"])
             if curr_id == temp_id:
-                val["tag"] = num["tag"] 
-        
+                if num["tag"] == "FALSE":
+                    val["tag"] = 0 
+                elif num["tag"] == "TRUE":
+                    val["tag"] = 1
+       
+        for elt in val: 
+            if type(val[elt]) is not str and type(val[elt]) is not int and type(val[elt]) is not bool:
+                val[elt] = 0 
         good_data.append(val)
     return good_data
 
