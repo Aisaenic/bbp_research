@@ -1,4 +1,4 @@
-import argparse, re, random, os
+import argparse, re, random, os, string
 """
 Author: Emily Gao
 About: Written for the purpose of classifying variable values and replacing them
@@ -25,11 +25,11 @@ class Data_Types():
                 return self.CVE(value)
             # check if it's a valid delimited integer (which is not a CIDR or IP address)
             # must have only digits and valid delimiters, and no alphabet characters
-            contains_valid_delims = bool(re.search('[\.,-_:\/\{\}\|\(\)\[\]\\\]', value))
-            does_not_contain_alpha = not bool(re.search('[a-zA-Z]', value))
-            if contains_valid_delims and does_not_contain_alpha:
-                return self.DELIMITED_INT(value)
-            # check if it's a valid id (TODO: need more input from Hava)
+            contains_valid_delims = re.search('[\.,-_:\/\{\}\|\(\)\[\]\\\]', value)
+            one_case_or_other = (value.upper() == value) or (value.lower() == value) # we cannot allow mixed case, that is invalid hex
+            not_contain_invalid_alpha = not re.search('[g-zG-Z]', value) # cannot fall within valid definition of delimited numbers
+            if one_case_or_other and not_contain_invalid_alpha: # and contains_valid_delims: TODO: Do we even need to check for delimiters?
+                return self.DELIMITED_NUM(value)
             # check if it's a valid hash (hexadecimal)
             try:
                 test_hash = int(value, 16) # attempt converting to int (Python handles erroring)
@@ -47,7 +47,7 @@ class Data_Types():
         # NOTE: If so, need to randomize netmask as well
         return "255.255.255.255/0"
 
-    def random_hex_generator(self, num_digits=None, start_with_0x=False):
+    def random_hex_generator(self, num_digits=None, start_with_0x=False, contains_upcase=False):
         digits = ""
         hex_alphabet = "1234567890abcdef"
         if start_with_0x:
@@ -56,6 +56,8 @@ class Data_Types():
             return ValueError("Must generate at least one random digit.")
         for i in range(num_digits):
             digits += hex_alphabet[random.randint(0,15)]
+        if contains_upcase:
+            return digits.upper()
         return digits
     
     def random_digits_generator(self, num_digits=None):
@@ -73,17 +75,18 @@ class Data_Types():
         split_by_dash = value.split("-")
         return f"{split_by_dash[0]}-{self.random_digits_generator(len(split_by_dash[1]))}-{self.random_digits_generator(len(split_by_dash[2]))}"
 
-    def replace_del_int(self, value):
+    def replace_del_num(self, value):
         new_val = ""
+        hex_alpha_present = re.search('[a-fA-F]', value) # strong indicator value contains hex (but still chance its an int, cannot tell 100%)
         for i in range(len(value)):
-            if value[i].isdigit():
-                new_val += self.random_digits_generator(1)
-            else:
+            if re.search('[0-9a-fA-F]', value[i]): # is a numeric digit
+                if hex_alpha_present:
+                    new_val += self.random_hex_generator(1) # can include a-fA-F
+                else:
+                    new_val += self.random_digits_generator(1) # cannot include a-fA-F
+            else: # is a delimiter
                 new_val += value[i]
         return new_val
-
-    def replace_id(self, value):
-        pass
 
     def replace_hash(self, value): # TODO: should length of hash remain the same? Yes. if non-zero, stay non-zero?
         if len(value) > 2 and value.startswith("0x"):
@@ -95,54 +98,62 @@ class Data_Types():
     IP = replace_ip
     CIDR = replace_cidr
     CVE = replace_cve
-    DELIMITED_INT = replace_del_int # phone numbers and SSNs
-    ID = replace_id
+    DELIMITED_NUM = replace_del_num # phone numbers and SSNs
     HASH = replace_hash
     MISMATCH = None
 
     def main(self):
-        print(self.identify("1-\555")) # make sure to test 1-\\555\-555-5555 vs 1-\555\-555-5555
+        #print(self.identify("1-\555")) # make sure to test 1-\\555\-555-5555 vs 1-\555\-555-5555
+        #print(self.identify("2500995745"))
+        pass
 
 def swap(to_swap):
     types = Data_Types()
     swapped = []
     for value in to_swap:
-        swapped.append(types.identify(value)(value))
+        swap = types.identify(value.strip())
+        if swap == Data_Types.MISMATCH:
+            swapped.append(value)
+        else:
+            swapped.append(swap)
     return swapped
 
-def file_precheck(name):
-    invalid = True
-    while invalid:
-        if os.path.exists(f"{os.getcwd()}/{name}"):
-            delete = input("Output file already exists, delete file first? [Y/n]")
-            if delete.lower() == "y":
-                os.remove(f"{os.getcwd()}/{name}")
-                invalid = False
-            else:
-                name = input(f"{'Input invalid. ' if delete.lower() != 'n' else ''}Please specify alternative filename.")
-        else:
-            return None
+# def file_precheck(name):
+#     invalid = True
+#     while invalid:
+#         if os.path.exists(f"{os.getcwd()}/{name}"):
+#             delete = input("Output file already exists, delete file first? [Y/n]")
+#             if delete.lower() == "y":
+#                 os.remove(f"{os.getcwd()}/{name}")
+#                 invalid = False
+#             else:
+#                 name = input(f"{'Input invalid. ' if delete.lower() != 'n' else ''}Please specify alternative filename.")
+#         else:
+#             return None
 
 def main(args):
     to_swap = []
     if args.infile:
-        with open(args.infile, "r") as infile:
-            to_swap = infile.readlines()
-    if args.swap:
-        to_swap = args.swap
+        if args.infile.endswith(".csv"):
+            with open(args.infile, "r") as infile:
+                to_swap = infile.readlines()
+        else:
+            print("Input file must be of type csv, please try again.")
+            return
+
+    outfile_name = f"{args.infile[:-4]}_swapped.csv"
+
     if len(to_swap) > 0:
         swapped = swap(to_swap)
-        # file_precheck(args.outfile)
-        # with open(args.outfile, "a") as outfile:
-        #     outfile.writelines(swapped)
-        print(swapped)
+        #file_precheck(args.outfile) # TODO
+        os.remove(f"{os.getcwd()}/{outfile_name}")
+        with open(outfile_name, "a") as outfile:
+            for swapped_val in swapped:
+                outfile.write(f"{swapped_val}\n")
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("-i", "--infile", default=None, help="Name of input file.")
-    # parser.add_argument("-s", "--swap", default=None, help="Single value to swap.")
-    # parser.add_argument("-o", "--outfile", default="swapped_values", help="Name of output file.")
-    # args = parser.parse_args()
-    # main(args)
-    dt = Data_Types()
-    dt.main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--infile", help="Name of input csv file.")
+    #parser.add_argument("-o", "--outfile", default=None, help="Name of output csv file.")
+    args = parser.parse_args()
+    main(args)
