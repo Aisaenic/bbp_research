@@ -113,23 +113,21 @@ def swap(to_swap):
     for value in to_swap:
         swap = types.identify(value.strip())
         if swap == Data_Types.MISMATCH:
-            swapped.append(value)
+            swapped.append(value.strip())
         else:
             swapped.append(swap)
     return swapped
 
-# def file_precheck(name):
-#     invalid = True
-#     while invalid:
-#         if os.path.exists(f"{os.getcwd()}/{name}"):
-#             delete = input("Output file already exists, delete file first? [Y/n]")
-#             if delete.lower() == "y":
-#                 os.remove(f"{os.getcwd()}/{name}")
-#                 invalid = False
-#             else:
-#                 name = input(f"{'Input invalid. ' if delete.lower() != 'n' else ''}Please specify alternative filename.")
-#         else:
-#             return None
+def file_precheck(name):
+    if os.path.exists(f"{name}"):
+        delete = input(f"Output file named {name} already exists, delete file first? [Y/n] ")
+        if delete.lower() == "y":
+            os.remove(f"{name}")
+            print("File removed, program proceeding.")
+        else:
+            print("Output file not deleted, stopping program.")
+            return False
+    return True
 
 def main(args):
     to_swap = []
@@ -141,19 +139,17 @@ def main(args):
             print("Input file must be of type csv, please try again.")
             return
 
-    outfile_name = f"{args.infile[:-4]}_swapped.csv"
+    outfile_name = f"{os.getcwd()}/testing_results/{args.infile.split('/')[-1][:-4]}_swapped.csv"
 
     if len(to_swap) > 0:
         swapped = swap(to_swap)
-        #file_precheck(args.outfile) # TODO
-        os.remove(f"{os.getcwd()}/{outfile_name}")
-        with open(outfile_name, "a") as outfile:
-            for swapped_val in swapped:
-                outfile.write(f"{swapped_val}\n")
+        if file_precheck(outfile_name):
+            with open(outfile_name, "a") as outfile:
+                for swapped_val in swapped:
+                    outfile.write(f"{swapped_val}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--infile", help="Name of input csv file.")
-    #parser.add_argument("-o", "--outfile", default=None, help="Name of output csv file.")
     args = parser.parse_args()
     main(args)
