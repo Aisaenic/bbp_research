@@ -1,8 +1,9 @@
-import argparse, re, random, os, string
+import argparse, re, random, os, string, ipaddress, requests, socket, struct
 """
 Author: Emily Gao
 About: Written for the purpose of classifying variable values and replacing them
 NOTE: A portion of the identify code was written by Emily Gao for another open-source project
+NOTE: A portion of the random ip generator code was written by Emily Gao for a network security course project
 """
 
 class Data_Types():
@@ -19,16 +20,16 @@ class Data_Types():
                         return self.IP(value)
             except:
                 pass # continue on, try-except counters issues with parsing delimited integers
-            # check if it's a valid CVE
+            # check if it's a valid CVE. rejects if input has mix of upper and lower case letters for CVE portion
             split_by_dash = value.split("-")
-            if len(split_by_dash) == 3 and split_by_dash[0].upper() == "CVE" and (split_by_dash[1].isdigit() and len(split_by_dash[1]) == 4) and split_by_dash[2].isdigit(): # NOTE: assumes a valid year has exactly 4 digits due to overwehelming nature of currently known existing CVEs
+            if len(split_by_dash) == 3 and (split_by_dash[0].upper() == "CVE" or split_by_dash[0].upper() == "cve") and (split_by_dash[1].isdigit() and len(split_by_dash[1]) == 4) and split_by_dash[2].isdigit(): # NOTE: assumes a valid year has exactly 4 digits due to overwehelming nature of currently known existing CVEs
                 return self.CVE(value)
             # check if it's a valid delimited integer (which is not a CIDR or IP address)
             # must have only digits and valid delimiters, and no alphabet characters
             contains_valid_delims = re.search('[\.,-_:\/\{\}\|\(\)\[\]\\\]', value)
             one_case_or_other = (value.upper() == value) or (value.lower() == value) # we cannot allow mixed case, that is invalid hex
             not_contain_invalid_alpha = not re.search('[g-zG-Z]', value) # cannot fall within valid definition of delimited numbers
-            if one_case_or_other and not_contain_invalid_alpha: # and contains_valid_delims: TODO: Do we even need to check for delimiters?
+            if one_case_or_other and not_contain_invalid_alpha: 
                 return self.DELIMITED_NUM(value)
             # check if it's a valid hash (hexadecimal)
             try:
@@ -38,14 +39,38 @@ class Data_Types():
                 pass
         return self.MISMATCH
 
+    def retrieve_free_pub_ranges(self):
+        # use new list only if old list is not available/has been removed
+        if not os.path.exists(f"{os.getcwd()}/freespace-prefix.txt"):
+            response = requests.get("https://www.cidr-report.org/bogons/freespace-prefix.txt")
+            if response.status_code == 200:
+                list_free_pub_ips = response.text
+                with open(f"{os.getcwd()}/freespace-prefix.txt", "w") as outfile: # update this whenever a new list is avail, since bogons list updates
+                    outfile.write(response.text)
+        # if an updated list can be pulled, great! now read from file just written. if not, no worries, read from old file cached from last success (earliest success from 04/24/2023)
+        with open(f"{os.getcwd()}/freespace-prefix.txt", "r") as infile:
+            list_free_pub_ips = infile.readlines()
+        return list_free_pub_ips
+
+    def random_ip_generator(self, allow_list):
+        default_range = allow_list[random.randint(0, len(allow_list)-1)].strip() # randomly select one default range from a list of CIDR ranges for unallocated public IP space
+        (net, cidr) = default_range.split('/')
+        
+        # calculates valid IP range
+        setbits = 32 - int(cidr)
+        usbi = socket.inet_aton(net)
+        lower = struct.unpack('!I', usbi)[0]
+        higher = lower + 2**setbits
+
+        address = ipaddress.IPv4Address(random.randint(lower, higher))
+        return address
+
     def replace_ip(self, value):
-        # TODO: Argue whether we need to generate a different random valid IP each time
-        return "255.255.255.255"
+        return self.random_ip_generator(self.retrieve_free_pub_ranges())
 
     def replace_cidr(self, value):
-        # TODO: Argue whether we need to generate a different random valid IP each time
-        # NOTE: If so, need to randomize netmask as well
-        return "255.255.255.255/0"
+        free_pub_ranges = self.retrieve_free_pub_ranges()
+        return self.retrieve_free_pub_ranges()[random.randint(0, len(free_pub_ranges) - 1)]
 
     def random_hex_generator(self, num_digits=None, start_with_0x=False, contains_upcase=False):
         digits = ""
@@ -70,8 +95,7 @@ class Data_Types():
             digits += str(random.randint(0, 9)) # unlike usual, this is inclusive of 9
         return digits
         
-    def replace_cve(self, value): # TODO: Should this be a valid CVE? should length of it remain the same? should CVE stay capitalized or undercased?
-        #return f"CVE-{self.random_digits_generator(4)}-{self.random_digits_generator()}"
+    def replace_cve(self, value):
         split_by_dash = value.split("-")
         return f"{split_by_dash[0]}-{self.random_digits_generator(len(split_by_dash[1]))}-{self.random_digits_generator(len(split_by_dash[2]))}"
 
@@ -88,7 +112,7 @@ class Data_Types():
                 new_val += value[i]
         return new_val
 
-    def replace_hash(self, value): # TODO: should length of hash remain the same? Yes. if non-zero, stay non-zero?
+    def replace_hash(self, value): 
         if len(value) > 2 and value.startswith("0x"):
             return self.random_hex_generator(len(value[2:]), True)
         else:
@@ -101,11 +125,6 @@ class Data_Types():
     DELIMITED_NUM = replace_del_num # phone numbers and SSNs
     HASH = replace_hash
     MISMATCH = None
-
-    def main(self):
-        #print(self.identify("1-\555")) # make sure to test 1-\\555\-555-5555 vs 1-\555\-555-5555
-        #print(self.identify("2500995745"))
-        pass
 
 def swap(to_swap):
     types = Data_Types()
@@ -146,7 +165,7 @@ def main(args):
         if file_precheck(outfile_name):
             with open(outfile_name, "a") as outfile:
                 for swapped_val in swapped:
-                    outfile.write(f"{swapped_val}\n")
+                    outfile.write(f"{str(swapped_val).strip()}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
