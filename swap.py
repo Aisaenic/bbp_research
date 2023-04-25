@@ -8,6 +8,9 @@ NOTE: A portion of the random ip generator code was written by Emily Gao for a n
 
 class Data_Types():
 
+    def init(self):
+        self.public_ip_ranges = self.retrieve_free_pub_ranges()
+
     def identify(self, value):
         if value and value != '':
             split_by_dot = re.split('[./]', value) # splits by dots or slashes
@@ -31,12 +34,6 @@ class Data_Types():
             not_contain_invalid_alpha = not re.search('[g-zG-Z]', value) # cannot fall within valid definition of delimited numbers
             if one_case_or_other and not_contain_invalid_alpha: 
                 return self.DELIMITED_NUM(value)
-            # check if it's a valid hash (hexadecimal)
-            try:
-                test_hash = int(value, 16) # attempt converting to int (Python handles erroring)
-                return self.HASH(value)
-            except ValueError:
-                pass
         return self.MISMATCH
 
     def retrieve_free_pub_ranges(self):
@@ -66,11 +63,11 @@ class Data_Types():
         return address
 
     def replace_ip(self, value):
-        return self.random_ip_generator(self.retrieve_free_pub_ranges())
+        return self.random_ip_generator(self.public_ip_ranges)
 
     def replace_cidr(self, value):
-        free_pub_ranges = self.retrieve_free_pub_ranges()
-        return self.retrieve_free_pub_ranges()[random.randint(0, len(free_pub_ranges) - 1)]
+        free_pub_ranges = self.public_ip_ranges
+        return self.public_ip_ranges[random.randint(0, len(free_pub_ranges) - 1)]
 
     def random_hex_generator(self, num_digits=None, start_with_0x=False, contains_upcase=False):
         digits = ""
