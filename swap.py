@@ -34,6 +34,12 @@ class Data_Types():
             not_contain_invalid_alpha = not re.search('[g-zG-Z]', value) # cannot fall within valid definition of delimited numbers
             if one_case_or_other and not_contain_invalid_alpha: 
                 return self.DELIMITED_NUM(value)
+            # check if it's a valid hash (hexadecimal) still needed because could be in form 0x, which delimited nums does not cover
+            try:
+                test_hash = int(value, 16) # attempt converting to int (Python handles erroring)
+                return self.HASH(value)
+            except ValueError:
+                pass
         return self.MISMATCH
 
     def retrieve_free_pub_ranges(self):
