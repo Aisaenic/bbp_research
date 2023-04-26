@@ -25,7 +25,7 @@ class Data_Types():
                 pass # continue on, try-except counters issues with parsing delimited integers
             # check if it's a valid CVE. rejects if input has mix of upper and lower case letters for CVE portion
             split_by_dash = value.split("-")
-            if len(split_by_dash) == 3 and (split_by_dash[0].upper() == "CVE" or split_by_dash[0].upper() == "cve") and (split_by_dash[1].isdigit() and len(split_by_dash[1]) == 4) and split_by_dash[2].isdigit(): # NOTE: assumes a valid year has exactly 4 digits due to overwehelming nature of currently known existing CVEs
+            if len(split_by_dash) == 3 and split_by_dash[0].upper() == "CVE" and (split_by_dash[1].isdigit() and len(split_by_dash[1]) == 4) and split_by_dash[2].isdigit(): # NOTE: assumes a valid year has exactly 4 digits due to overwehelming nature of currently known existing CVEs
                 return self.CVE(value)
             # check if it's a valid delimited integer (which is not a CIDR or IP address)
             # must have only digits and valid delimiters, and no alphabet characters
